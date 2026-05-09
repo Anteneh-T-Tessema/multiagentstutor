@@ -1,0 +1,24 @@
+.app-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.markdown-content {
+  line-height: 1.6;
+  color: #d1d5db;
+}
+
+.markdown-content h1, .markdown-content h2, .markdown-content h3 {
+  color: #f3f4f6;
+  margin-top: 1.5rem;
+}
+
+.markdown-content p {
+  margin-bottom: 1rem;
+}
+
+.markdown-content ul {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}

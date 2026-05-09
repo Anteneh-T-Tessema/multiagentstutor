@@ -1,0 +1,14 @@
+langgraph
+langchain
+langchain-ollama
+langchain-community
+chromadb
+pydantic
+python-dotenv
+rich
+pytest
+fastapi
+uvicorn
+ragas
+crewai
+pyautogen
