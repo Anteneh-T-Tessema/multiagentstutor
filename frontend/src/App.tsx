@@ -14,6 +14,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ProposalResponse | null>(null);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
+  const [isAwaitingReview, setIsAwaitingReview] = useState(false);
+  const thread_id = "consultant_session_1";
 
   const generateProposal = async () => {
     setLoading(true);
@@ -30,17 +32,38 @@ function App() {
       const response = await fetch('http://localhost:7854/generate-proposal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes }),
+        body: JSON.stringify({ notes, thread_id }),
       });
       
       const data = await response.json();
+      if (data.status === 'awaiting_review') {
+        setIsAwaitingReview(true);
+      }
       setResult(data);
     } catch (error) {
       console.error('Failed to generate proposal:', error);
-      alert('Error connecting to backend. Ensure FastAPI is running on port 8000.');
+      alert('Error connecting to backend.');
     } finally {
       setLoading(false);
       setCurrentStep(null);
+    }
+  };
+
+  const approveProposal = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:7854/approve-proposal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes, thread_id }),
+      });
+      const data = await response.json();
+      setResult(data);
+      setIsAwaitingReview(false);
+    } catch (error) {
+      console.error('Failed to approve proposal:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -86,7 +109,20 @@ function App() {
 
         {/* Right Panel: Result */}
         <section className="card" style={{ overflowY: 'auto' }}>
-          <h3>3. Technical Solution Proposal</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3>3. Technical Solution Proposal</h3>
+            {isAwaitingReview && (
+              <div style={{ background: '#f8514933', border: '1px solid #f85149', padding: '4px 12px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ color: '#f85149', fontSize: '0.8rem', fontWeight: 'bold' }}>⚠️ REVIEW REQUIRED</span>
+                <button 
+                  onClick={approveProposal}
+                  style={{ background: '#238636', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }}
+                >
+                  Approve & Resume
+                </button>
+              </div>
+            )}
+          </div>
           <div className="proposal-view">
             {result ? (
               <div className="content-area">

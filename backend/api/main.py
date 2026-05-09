@@ -31,9 +31,33 @@ async def generate_proposal(request: DiscoveryRequest):
         # Run the graph synchronously for the prototype
         # (In prod, use a background task or webhooks)
         config = {"configurable": {"thread_id": request.thread_id}}
+        
+        # Check if the graph is already interrupted
+        state = langgraph_app.get_state(config)
+        if state.next:
+             return {
+                "status": "awaiting_review",
+                "next_step": state.next[0],
+                "proposal": state.values.get("final_proposal", "Drafting in progress..."),
+                "constraints": state.values.get("constraints", []),
+                "thread_id": request.thread_id
+            }
+
         result = langgraph_app.invoke(inputs, config=config)
         
+        # Check if it hit an interrupt after invocation
+        final_state = langgraph_app.get_state(config)
+        if final_state.next:
+            return {
+                "status": "awaiting_review",
+                "next_step": final_state.next[0],
+                "proposal": "PROPOSAL BLOCKED: Human Review Required",
+                "constraints": final_state.values.get("constraints", []),
+                "thread_id": request.thread_id
+            }
+
         return {
+            "status": "success",
             "proposal": result.get("final_proposal", ""),
             "constraints": result.get("constraints", []),
             "steps": result.get("steps", []),
@@ -44,6 +68,24 @@ async def generate_proposal(request: DiscoveryRequest):
         print(f"❌ BACKEND ERROR: {str(e)}")
         import traceback
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api.post("/approve-proposal")
+async def approve_proposal(request: DiscoveryRequest):
+    try:
+        config = {"configurable": {"thread_id": request.thread_id}}
+        
+        # Resume the graph with None to signify 'Approval'
+        # In a real app, we might pass modified notes here
+        result = langgraph_app.invoke(None, config=config)
+        
+        return {
+            "status": "success",
+            "proposal": result.get("final_proposal", ""),
+            "steps": result.get("steps", [])
+        }
+    except Exception as e:
+        print(f"❌ APPROVAL ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
