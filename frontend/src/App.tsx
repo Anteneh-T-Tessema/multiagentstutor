@@ -27,7 +27,7 @@ function App() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/generate-proposal', {
+      const response = await fetch('http://localhost:7854/generate-proposal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes }),

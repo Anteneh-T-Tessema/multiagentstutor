@@ -5,7 +5,7 @@ services:
     build:
       context: ./backend
     ports:
-      - "8000:8000"
+      - "7854:7854"
     volumes:
       - ./backend/chroma_db:/app/chroma_db
     environment:
@@ -21,7 +21,7 @@ services:
     depends_on:
       - backend
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=http://localhost:7854
 
 volumes:
   chroma_data:
