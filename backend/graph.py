@@ -3,7 +3,8 @@ import operator
 import json
 from langgraph.graph import StateGraph, END
 from langchain_ollama import ChatOllama
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
+from prompts.templates import ANALYST_PROMPT, ARCHITECT_PROMPT
 
 # Initialize the Local LLM
 llm = ChatOllama(model="gemma4:26b", temperature=0)
@@ -39,6 +40,7 @@ class AgentState(TypedDict):
     tool_data: dict  # Results from MCP tool calls
     final_proposal: str  # The final delivery artifact
     steps: Annotated[List[str], operator.add]  # Tracking the reasoning chain
+    messages: Annotated[List[BaseMessage], operator.add] # Conversational memory
 
 # 2. Define Node Functions
 
@@ -56,23 +58,14 @@ def analyst_node(state: AgentState):
     # 2. Mask PII
     masked_notes, _ = pii_masking_gateway(state['discovery_doc'])
     
-    prompt = f"""
-    You are a Senior Solutions Architect. Extract all technical, business, and compliance constraints from the following notes.
-    Return the result as a JSON list of strings.
+    # 3. Use Engineered Prompt with Memory
+    # The Analyst now sees the full conversation history
+    history = state.get("messages", [])
+    chain = ANALYST_PROMPT | llm
     
-    Notes:
-    {masked_notes}
-    
-    JSON Output:
-    """
-    
-    response = llm.invoke([
-        SystemMessage(content="You extract technical constraints into JSON list format. No conversational filler."),
-        HumanMessage(content=prompt)
-    ])
+    response = chain.invoke({"discovery_doc": masked_notes, "history": history})
     
     try:
-        # Simple cleanup in case the LLM adds markdown backticks
         content = response.content.strip().replace("```json", "").replace("```", "")
         extracted_constraints = json.loads(content)
     except:
@@ -80,7 +73,8 @@ def analyst_node(state: AgentState):
 
     return {
         "constraints": extracted_constraints,
-        "steps": ["analyst"]
+        "steps": ["analyst"],
+        "messages": [HumanMessage(content=state['discovery_doc']), response]
     }
 
 from langchain_ollama import OllamaEmbeddings
@@ -155,18 +149,16 @@ def architect_node(state: AgentState):
     # Check if we passed human review for high-risk cases
     review_status = "Approved by Consultant" if "human_review" in state["steps"] else "Standard Automated Path"
     
-    prompt = f"""
-    Synthesize a Technical Solution Proposal.
-    STATUS: {review_status}
+    # Use Engineered Architect Prompt with Full Context
+    history_summary = "\n".join([m.content for m in state.get("messages", [])])
     
-    - Constraints: {state['constraints']}
-    - Reference Context: {state['rag_context']}
-    - Live Tool Data: {state['tool_data']}
+    chain = ARCHITECT_PROMPT | llm
     
-    Address any 'Warning' or 'Manual Review' flags from the tool data explicitly.
-    """
-    
-    response = llm.invoke([HumanMessage(content=prompt)])
+    response = chain.invoke({
+        "constraints": state['constraints'],
+        "rag_context": "\n".join(state['rag_context']),
+        "memory": history_summary
+    })
     
     # Final Output Sanitization
     final_proposal = sanitize_output(response.content)

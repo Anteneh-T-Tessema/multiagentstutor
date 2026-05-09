@@ -22,6 +22,7 @@ api.add_middleware(
 
 class DiscoveryRequest(BaseModel):
     notes: str
+    thread_id: str = "default_session"
 
 @api.post("/generate-proposal")
 async def generate_proposal(request: DiscoveryRequest):
@@ -29,7 +30,8 @@ async def generate_proposal(request: DiscoveryRequest):
         inputs = {"discovery_doc": request.notes}
         # Run the graph synchronously for the prototype
         # (In prod, use a background task or webhooks)
-        result = langgraph_app.invoke(inputs)
+        config = {"configurable": {"thread_id": request.thread_id}}
+        result = langgraph_app.invoke(inputs, config=config)
         
         return {
             "proposal": result.get("final_proposal", ""),
@@ -39,6 +41,9 @@ async def generate_proposal(request: DiscoveryRequest):
             "tool_data": result.get("tool_data", {})
         }
     except Exception as e:
+        print(f"❌ BACKEND ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
